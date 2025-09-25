@@ -9,7 +9,7 @@ OUT=build/1shot.exe
 all: $(OUT)
 
 $(OUT): $(OBJ)
-	$(CC) $(OBJ) -o $@ $(LIBS)
+	$(CC) $(OBJ) -o $@ $(LIBS) -mwindows
 
 clean:
 	del /Q src\*.o build\*.exe

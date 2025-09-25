@@ -11,6 +11,22 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             CopyToClipboard(shot);
         }
         break;
+    case WM_USER + 1: // tray callback
+        if (lParam == WM_RBUTTONUP) {
+            ShowTrayMenu(hwnd);
+        }
+        break;
+    case WM_COMMAND:
+        switch (LOWORD(wParam)) {
+        case TRAY_EXIT:
+            RemoveTrayIcon(hwnd);
+            PostQuitMessage(0);
+            break;
+        case TRAY_ABOUT:
+            MessageBox(NULL, "1Shot v1.0\nQuick screenshot tool", "About", MB_OK | MB_ICONINFORMATION);
+            break;
+        }
+        break;
     case WM_DESTROY:
         RemoveTrayIcon(hwnd);
         PostQuitMessage(0);
