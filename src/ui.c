@@ -74,42 +74,36 @@ static BOOL GetAutoStartRegistry(void)
 
 static void DrawToggleSwitch(HDC hdc, RECT rect, BOOL state, BOOL hover)
 {
-    SetBkMode(hdc, TRANSPARENT);
-    
     int width = rect.right - rect.left;
     int height = rect.bottom - rect.top;
-    int radius = height / 2;
     
     COLORREF bgColor;
     if (state) {
         bgColor = hover ? RGB(100, 200, 120) : RGB(76, 175, 80);
     } else {
-        bgColor = hover ? RGB(170, 170, 170) : RGB(120, 120, 120);
+        bgColor = hover ? RGB(100, 100, 100) : RGB(60, 60, 60);
     }
     
     HBRUSH bgBrush = CreateSolidBrush(bgColor);
     HBRUSH knobBrush = CreateSolidBrush(RGB(255, 255, 255));
-    HPEN bgPen = CreatePen(PS_SOLID, 0, bgColor);
-    HPEN knobPen = CreatePen(PS_SOLID, 1, RGB(220, 220, 220));
+    HPEN noPen = CreatePen(PS_NULL, 0, RGB(0, 0, 0));
     
-    SelectObject(hdc, bgPen);
+    SelectObject(hdc, noPen);
     SelectObject(hdc, bgBrush);
     
     RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, height, height);
     
-    SelectObject(hdc, knobPen);
     SelectObject(hdc, knobBrush);
     
-    int knobSize = height - 6;
-    int knobX = state ? (rect.right - knobSize - 3) : (rect.left + 3);
-    int knobY = rect.top + 3;
+    int knobSize = height - 4;
+    int knobX = state ? (rect.right - knobSize - 2) : (rect.left + 2);
+    int knobY = rect.top + 2;
     
     Ellipse(hdc, knobX, knobY, knobX + knobSize, knobY + knobSize);
     
     DeleteObject(bgBrush);
     DeleteObject(knobBrush);
-    DeleteObject(bgPen);
-    DeleteObject(knobPen);
+    DeleteObject(noPen);
 }
 
 static LRESULT CALLBACK ToggleWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -323,7 +317,7 @@ void InitUI(HWND hwnd_parent)
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     RegisterClass(&wc);
 
-    hwnd_ui = CreateWindow("ModernUIClass", "1Shot Settings",
+    hwnd_ui = CreateWindow("ModernUIClass", "1Shot",
                            WS_OVERLAPPEDWINDOW & ~(WS_MAXIMIZEBOX | WS_THICKFRAME),
                            CW_USEDEFAULT, CW_USEDEFAULT, ui_width, ui_height,
                            hwnd_parent, NULL, GetModuleHandle(NULL), NULL);
