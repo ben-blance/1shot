@@ -1,54 +1,295 @@
-//ui.c - Simple Win32 UI (no Nuklear to avoid font issues)
+//ui.c
 #include "ui.h"
 #include <windows.h>
+#include <commctrl.h>
 
-static int auto_start = 0; // Using int instead of nk_bool
+static int auto_start = 0;
 static HWND hwnd_ui = NULL;
-static HWND hwnd_checkbox = NULL;
-static int ui_width = 320, ui_height = 150;
+static HWND hwnd_toggle = NULL;
+static HWND hwnd_label1 = NULL;
+static HWND hwnd_label2 = NULL;
+static HWND hwnd_label3 = NULL;
+static int ui_width = 380, ui_height = 200;
+static BOOL toggle_state = FALSE;
+static BOOL is_hovering = FALSE;
 
-#define ID_CHECKBOX_AUTOSTART 1001
+#define ID_TOGGLE_AUTOSTART 1001
+#define REGISTRY_KEY "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run"
+#define APP_NAME "1Shot"
+
+static BOOL SetAutoStartRegistry(BOOL enable);
+static BOOL GetAutoStartRegistry(void);
+static void DrawToggleSwitch(HDC hdc, RECT rect, BOOL state, BOOL hover);
+
+static HFONT CreateModernFont(int size, BOOL bold)
+{
+    return CreateFont(
+        size, 0, 0, 0, bold ? FW_BOLD : FW_NORMAL, 
+        FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+        "Segoe UI"
+    );
+}
+
+static BOOL SetAutoStartRegistry(BOOL enable)
+{
+    HKEY hKey;
+    LONG result = RegOpenKeyEx(HKEY_CURRENT_USER, REGISTRY_KEY, 0, KEY_SET_VALUE, &hKey);
+    
+    if (result != ERROR_SUCCESS) {
+        return FALSE;
+    }
+    
+    if (enable) {
+        char exePath[MAX_PATH];
+        GetModuleFileName(NULL, exePath, MAX_PATH);
+        result = RegSetValueEx(hKey, APP_NAME, 0, REG_SZ, (BYTE*)exePath, strlen(exePath) + 1);
+    } else {
+        result = RegDeleteValue(hKey, APP_NAME);
+        if (result == ERROR_FILE_NOT_FOUND) {
+            result = ERROR_SUCCESS;
+        }
+    }
+    
+    RegCloseKey(hKey);
+    return (result == ERROR_SUCCESS);
+}
+
+static BOOL GetAutoStartRegistry(void)
+{
+    HKEY hKey;
+    LONG result = RegOpenKeyEx(HKEY_CURRENT_USER, REGISTRY_KEY, 0, KEY_QUERY_VALUE, &hKey);
+    
+    if (result != ERROR_SUCCESS) {
+        return FALSE;
+    }
+    
+    DWORD dataSize = 0;
+    result = RegQueryValueEx(hKey, APP_NAME, NULL, NULL, NULL, &dataSize);
+    RegCloseKey(hKey);
+    
+    return (result == ERROR_SUCCESS && dataSize > 0);
+}
+
+static void DrawToggleSwitch(HDC hdc, RECT rect, BOOL state, BOOL hover)
+{
+    SetBkMode(hdc, TRANSPARENT);
+    
+    int width = rect.right - rect.left;
+    int height = rect.bottom - rect.top;
+    int radius = height / 2;
+    
+    COLORREF bgColor;
+    if (state) {
+        bgColor = hover ? RGB(100, 200, 120) : RGB(76, 175, 80);
+    } else {
+        bgColor = hover ? RGB(170, 170, 170) : RGB(120, 120, 120);
+    }
+    
+    HBRUSH bgBrush = CreateSolidBrush(bgColor);
+    HBRUSH knobBrush = CreateSolidBrush(RGB(255, 255, 255));
+    HPEN bgPen = CreatePen(PS_SOLID, 0, bgColor);
+    HPEN knobPen = CreatePen(PS_SOLID, 1, RGB(220, 220, 220));
+    
+    SelectObject(hdc, bgPen);
+    SelectObject(hdc, bgBrush);
+    
+    RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, height, height);
+    
+    SelectObject(hdc, knobPen);
+    SelectObject(hdc, knobBrush);
+    
+    int knobSize = height - 6;
+    int knobX = state ? (rect.right - knobSize - 3) : (rect.left + 3);
+    int knobY = rect.top + 3;
+    
+    Ellipse(hdc, knobX, knobY, knobX + knobSize, knobY + knobSize);
+    
+    DeleteObject(bgBrush);
+    DeleteObject(knobBrush);
+    DeleteObject(bgPen);
+    DeleteObject(knobPen);
+}
+
+static LRESULT CALLBACK ToggleWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch(msg) {
+        case WM_PAINT: {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hwnd, &ps);
+            
+            RECT rect;
+            GetClientRect(hwnd, &rect);
+            
+            HBRUSH bgBrush = CreateSolidBrush(RGB(24, 37, 37));
+            FillRect(hdc, &rect, bgBrush);
+            DeleteObject(bgBrush);
+            
+            DrawToggleSwitch(hdc, rect, toggle_state, is_hovering);
+            
+            EndPaint(hwnd, &ps);
+            return 0;
+        }
+        
+        case WM_MOUSEMOVE: {
+            if (!is_hovering) {
+                is_hovering = TRUE;
+                InvalidateRect(hwnd, NULL, TRUE);
+                
+                TRACKMOUSEEVENT tme;
+                tme.cbSize = sizeof(tme);
+                tme.dwFlags = TME_LEAVE;
+                tme.hwndTrack = hwnd;
+                TrackMouseEvent(&tme);
+            }
+            return 0;
+        }
+        
+        case WM_MOUSELEAVE: {
+            is_hovering = FALSE;
+            InvalidateRect(hwnd, NULL, TRUE);
+            return 0;
+        }
+        
+        case WM_LBUTTONDOWN: {
+            toggle_state = !toggle_state;
+            auto_start = toggle_state;
+            
+            if (SetAutoStartRegistry(toggle_state)) {
+                InvalidateRect(hwnd, NULL, TRUE);
+            } else {
+                toggle_state = !toggle_state;
+                auto_start = toggle_state;
+                MessageBox(GetParent(hwnd), "Failed to update auto-start setting", "1Shot", MB_OK | MB_ICONERROR);
+            }
+            return 0;
+        }
+        
+        case WM_SETCURSOR: {
+            SetCursor(LoadCursor(NULL, IDC_HAND));
+            return TRUE;
+        }
+    }
+    
+    return DefWindowProc(hwnd, msg, wParam, lParam);
+}
+
+static LRESULT CALLBACK LabelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch(msg) {
+        case WM_PAINT: {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hwnd, &ps);
+            
+            RECT rect;
+            GetClientRect(hwnd, &rect);
+            
+            HBRUSH bgBrush = CreateSolidBrush(RGB(24, 37, 37));
+            FillRect(hdc, &rect, bgBrush);
+            DeleteObject(bgBrush);
+            
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, RGB(255, 255, 255));
+            
+            char text[256];
+            GetWindowText(hwnd, text, sizeof(text));
+            
+            HFONT font;
+            if (hwnd == hwnd_label1) {
+                font = CreateModernFont(-16, TRUE);
+            } else if (hwnd == hwnd_label2) {
+                font = CreateModernFont(-14, FALSE);
+                SetTextColor(hdc, RGB(100, 200, 120));
+            } else {
+                font = CreateModernFont(-12, FALSE);
+                SetTextColor(hdc, RGB(180, 180, 180));
+            }
+            
+            HFONT oldFont = SelectObject(hdc, font);
+            DrawText(hdc, text, -1, &rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+            SelectObject(hdc, oldFont);
+            DeleteObject(font);
+            
+            EndPaint(hwnd, &ps);
+            return 0;
+        }
+        
+        case WM_ERASEBKGND: {
+            return 1;
+        }
+    }
+    
+    return DefWindowProc(hwnd, msg, wParam, lParam);
+}
 
 static LRESULT CALLBACK UIWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch(msg) {
         case WM_CREATE: {
-            // Create checkbox for auto-start
-            hwnd_checkbox = CreateWindow(
-                "BUTTON", "Start with Windows",
-                WS_VISIBLE | WS_CHILD | BS_CHECKBOX,
-                20, 30, 200, 25,
-                hwnd, (HMENU)ID_CHECKBOX_AUTOSTART,
+            WNDCLASS labelClass = {0};
+            labelClass.lpfnWndProc = LabelWndProc;
+            labelClass.hInstance = GetModuleHandle(NULL);
+            labelClass.lpszClassName = "ModernLabel";
+            labelClass.hbrBackground = CreateSolidBrush(RGB(24, 37, 37));
+            RegisterClass(&labelClass);
+            
+            hwnd_label1 = CreateWindow(
+                "ModernLabel", "Start with Windows",
+                WS_VISIBLE | WS_CHILD,
+                30, 40, 200, 25,
+                hwnd, NULL, GetModuleHandle(NULL), NULL
+            );
+            
+            WNDCLASS toggleClass = {0};
+            toggleClass.lpfnWndProc = ToggleWndProc;
+            toggleClass.hInstance = GetModuleHandle(NULL);
+            toggleClass.lpszClassName = "ModernToggle";
+            toggleClass.hbrBackground = CreateSolidBrush(RGB(24, 37, 37));
+            RegisterClass(&toggleClass);
+            
+            hwnd_toggle = CreateWindow(
+                "ModernToggle", "",
+                WS_VISIBLE | WS_CHILD,
+                280, 42, 70, 30,
+                hwnd, (HMENU)ID_TOGGLE_AUTOSTART,
                 GetModuleHandle(NULL), NULL
             );
             
-            // Set checkbox state
-            SendMessage(hwnd_checkbox, BM_SETCHECK, auto_start ? BST_CHECKED : BST_UNCHECKED, 0);
-            
-            // Create hotkey label
-            CreateWindow(
-                "STATIC", "Hotkey: Alt+X",
+            hwnd_label2 = CreateWindow(
+                "ModernLabel", "Hotkey: Alt+X",
                 WS_VISIBLE | WS_CHILD,
-                20, 60, 200, 20,
+                30, 90, 200, 20,
                 hwnd, NULL, GetModuleHandle(NULL), NULL
             );
             
-            // Create info label
-            CreateWindow(
-                "STATIC", "Right-click tray icon to open this window",
+            hwnd_label3 = CreateWindow(
+                "ModernLabel", "Right-click tray icon to access settings",
                 WS_VISIBLE | WS_CHILD,
-                20, 85, 280, 20,
+                30, 130, 320, 20,
                 hwnd, NULL, GetModuleHandle(NULL), NULL
             );
+            
             break;
         }
         
-        case WM_COMMAND: {
-            if (LOWORD(wParam) == ID_CHECKBOX_AUTOSTART) {
-                auto_start = (SendMessage(hwnd_checkbox, BM_GETCHECK, 0, 0) == BST_CHECKED);
-                // Here you could add registry code to actually implement auto-start
-            }
-            break;
+        case WM_PAINT: {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hwnd, &ps);
+            
+            RECT rect;
+            GetClientRect(hwnd, &rect);
+            
+            HBRUSH bgBrush = CreateSolidBrush(RGB(24, 37, 37));
+            FillRect(hdc, &rect, bgBrush);
+            DeleteObject(bgBrush);
+            
+            EndPaint(hwnd, &ps);
+            return 0;
+        }
+        
+        case WM_ERASEBKGND: {
+            return 1;
         }
         
         case WM_CLOSE: {
@@ -71,15 +312,18 @@ void InitUI(HWND hwnd_parent)
 {
     if(hwnd_ui) return;
 
+    toggle_state = GetAutoStartRegistry();
+    auto_start = toggle_state;
+
     WNDCLASS wc = {0};
     wc.lpfnWndProc = UIWndProc;
     wc.hInstance = GetModuleHandle(NULL);
-    wc.lpszClassName = "OneShotUIClass";
-    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+    wc.lpszClassName = "ModernUIClass";
+    wc.hbrBackground = CreateSolidBrush(RGB(24, 37, 37));
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     RegisterClass(&wc);
 
-    hwnd_ui = CreateWindow("OneShotUIClass", "1Shot Settings",
+    hwnd_ui = CreateWindow("ModernUIClass", "1Shot Settings",
                            WS_OVERLAPPEDWINDOW & ~(WS_MAXIMIZEBOX | WS_THICKFRAME),
                            CW_USEDEFAULT, CW_USEDEFAULT, ui_width, ui_height,
                            hwnd_parent, NULL, GetModuleHandle(NULL), NULL);
@@ -95,16 +339,16 @@ void ShowUI()
 
 void RenderUI(HWND hwnd)
 {
-    // No rendering needed for native Win32 controls
     if(hwnd_ui && IsWindowVisible(hwnd_ui)) {
         UpdateWindow(hwnd_ui);
     }
 }
 
-int GetAutoStartToggle() { return auto_start; } // Changed return type
+int GetAutoStartToggle() { return auto_start; }
 void SetAutoStartToggle(int value) { 
-    auto_start = value; 
-    if (hwnd_checkbox) {
-        SendMessage(hwnd_checkbox, BM_SETCHECK, value ? BST_CHECKED : BST_UNCHECKED, 0);
+    auto_start = value;
+    toggle_state = value;
+    if (hwnd_toggle) {
+        InvalidateRect(hwnd_toggle, NULL, TRUE);
     }
 }
