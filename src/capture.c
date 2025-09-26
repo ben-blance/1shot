@@ -1,3 +1,4 @@
+//capture.c
 #include <windows.h>
 #include "capture.h"
 

@@ -1,3 +1,4 @@
+//capture.h
 #ifndef CAPTURE_H
 #define CAPTURE_H
 #include <windows.h>
