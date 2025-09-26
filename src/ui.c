@@ -9,17 +9,21 @@ static HWND hwnd_toggle = NULL;
 static HWND hwnd_label1 = NULL;
 static HWND hwnd_label2 = NULL;
 static HWND hwnd_label3 = NULL;
+static HWND hwnd_github = NULL;
 static int ui_width = 380, ui_height = 200;
 static BOOL toggle_state = FALSE;
 static BOOL is_hovering = FALSE;
+static BOOL github_hovering = FALSE;
 
 #define ID_TOGGLE_AUTOSTART 1001
+#define ID_GITHUB_LINK 1002
 #define REGISTRY_KEY "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run"
 #define APP_NAME "1Shot"
 
 static BOOL SetAutoStartRegistry(BOOL enable);
 static BOOL GetAutoStartRegistry(void);
 static void DrawToggleSwitch(HDC hdc, RECT rect, BOOL state, BOOL hover);
+static void DrawGitHubButton(HDC hdc, RECT rect, BOOL hover);
 
 static HFONT CreateModernFont(int size, BOOL bold)
 {
@@ -106,6 +110,39 @@ static void DrawToggleSwitch(HDC hdc, RECT rect, BOOL state, BOOL hover)
     DeleteObject(noPen);
 }
 
+static void DrawGitHubButton(HDC hdc, RECT rect, BOOL hover)
+{
+    COLORREF bgColor = hover ? RGB(40, 50, 50) : RGB(30, 42, 42);
+    HBRUSH bgBrush = CreateSolidBrush(bgColor);
+    HPEN borderPen = CreatePen(PS_SOLID, 1, RGB(80, 80, 80));
+    
+    SelectObject(hdc, borderPen);
+    SelectObject(hdc, bgBrush);
+    RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, 8, 8);
+    
+    HICON githubIcon = (HICON)LoadImage(NULL, "assets/github.ico", IMAGE_ICON, 16, 16, LR_LOADFROMFILE);
+    if (!githubIcon) {
+        githubIcon = LoadIcon(NULL, IDI_INFORMATION);
+    }
+    
+    DrawIconEx(hdc, rect.left + 10, rect.top + 7, githubIcon, 16, 16, 0, NULL, DI_NORMAL);
+    
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, hover ? RGB(120, 220, 150) : RGB(100, 200, 120));
+    
+    HFONT font = CreateModernFont(-12, FALSE);
+    HFONT oldFont = SelectObject(hdc, font);
+    
+    RECT textRect = {rect.left + 35, rect.top, rect.right - 10, rect.bottom};
+    DrawText(hdc, "Check out the source code on GitHub", -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    
+    SelectObject(hdc, oldFont);
+    DeleteObject(font);
+    DeleteObject(bgBrush);
+    DeleteObject(borderPen);
+    if (githubIcon) DestroyIcon(githubIcon);
+}
+
 static LRESULT CALLBACK ToggleWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch(msg) {
@@ -157,6 +194,60 @@ static LRESULT CALLBACK ToggleWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
                 auto_start = toggle_state;
                 MessageBox(GetParent(hwnd), "Failed to update auto-start setting", "1Shot", MB_OK | MB_ICONERROR);
             }
+            return 0;
+        }
+        
+        case WM_SETCURSOR: {
+            SetCursor(LoadCursor(NULL, IDC_HAND));
+            return TRUE;
+        }
+    }
+    
+    return DefWindowProc(hwnd, msg, wParam, lParam);
+}
+
+static LRESULT CALLBACK GitHubWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch(msg) {
+        case WM_PAINT: {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hwnd, &ps);
+            
+            RECT rect;
+            GetClientRect(hwnd, &rect);
+            
+            HBRUSH bgBrush = CreateSolidBrush(RGB(24, 37, 37));
+            FillRect(hdc, &rect, bgBrush);
+            DeleteObject(bgBrush);
+            
+            DrawGitHubButton(hdc, rect, github_hovering);
+            
+            EndPaint(hwnd, &ps);
+            return 0;
+        }
+        
+        case WM_MOUSEMOVE: {
+            if (!github_hovering) {
+                github_hovering = TRUE;
+                InvalidateRect(hwnd, NULL, TRUE);
+                
+                TRACKMOUSEEVENT tme;
+                tme.cbSize = sizeof(tme);
+                tme.dwFlags = TME_LEAVE;
+                tme.hwndTrack = hwnd;
+                TrackMouseEvent(&tme);
+            }
+            return 0;
+        }
+        
+        case WM_MOUSELEAVE: {
+            github_hovering = FALSE;
+            InvalidateRect(hwnd, NULL, TRUE);
+            return 0;
+        }
+        
+        case WM_LBUTTONDOWN: {
+            ShellExecute(NULL, "open", "https://github.com/ben-blance/1shot", NULL, NULL, SW_SHOWNORMAL);
             return 0;
         }
         
@@ -257,11 +348,19 @@ static LRESULT CALLBACK UIWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
                 hwnd, NULL, GetModuleHandle(NULL), NULL
             );
             
-            hwnd_label3 = CreateWindow(
-                "ModernLabel", "Right-click tray icon to access settings",
+            WNDCLASS githubClass = {0};
+            githubClass.lpfnWndProc = GitHubWndProc;
+            githubClass.hInstance = GetModuleHandle(NULL);
+            githubClass.lpszClassName = "GitHubButton";
+            githubClass.hbrBackground = CreateSolidBrush(RGB(24, 37, 37));
+            RegisterClass(&githubClass);
+            
+            hwnd_github = CreateWindow(
+                "GitHubButton", "",
                 WS_VISIBLE | WS_CHILD,
-                30, 130, 320, 20,
-                hwnd, NULL, GetModuleHandle(NULL), NULL
+                30, 130, 320, 30,
+                hwnd, (HMENU)ID_GITHUB_LINK,
+                GetModuleHandle(NULL), NULL
             );
             
             break;
@@ -289,6 +388,14 @@ static LRESULT CALLBACK UIWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         case WM_CLOSE: {
             ShowWindow(hwnd, SW_HIDE);
             return 0;
+        }
+        
+        case WM_SYSCOMMAND: {
+            if (wParam == SC_MINIMIZE) {
+                ShowWindow(hwnd, SW_HIDE);
+                return 0;
+            }
+            return DefWindowProc(hwnd, msg, wParam, lParam);
         }
         
         case WM_DESTROY: {
@@ -326,8 +433,15 @@ void InitUI(HWND hwnd_parent)
 void ShowUI()
 {
     if(hwnd_ui) {
-        ShowWindow(hwnd_ui, SW_SHOW);
+        if (IsIconic(hwnd_ui)) {
+            ShowWindow(hwnd_ui, SW_RESTORE);
+        } else {
+            ShowWindow(hwnd_ui, SW_SHOW);
+        }
+        SetWindowPos(hwnd_ui, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
         SetForegroundWindow(hwnd_ui);
+        SetActiveWindow(hwnd_ui);
+        BringWindowToTop(hwnd_ui);
     }
 }
 
