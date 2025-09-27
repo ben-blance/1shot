@@ -34,7 +34,6 @@ SetupIconFile=C:\Users\Sahil\Desktop\random_shit\1shot\assets\icon.ico
 SolidCompression=yes
 WizardStyle=classic
 UninstallDisplayName=1shot
-UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
