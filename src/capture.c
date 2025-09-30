@@ -4,17 +4,31 @@
 
 HBITMAP CaptureScreen(void)
 {
-    HDC hScreen = GetDC(NULL);
-    HDC hDC = CreateCompatibleDC(hScreen);
-    int width = GetSystemMetrics(SM_CXSCREEN);
-    int height = GetSystemMetrics(SM_CYSCREEN);
-
-    HBITMAP hBitmap = CreateCompatibleBitmap(hScreen, width, height);
-    SelectObject(hDC, hBitmap);
-    BitBlt(hDC, 0, 0, width, height, hScreen, 0, 0, SRCCOPY);
-
-    DeleteDC(hDC);
-    ReleaseDC(NULL, hScreen);
+    HDC hScreenDC = GetDC(NULL);
+    HDC hMemoryDC = CreateCompatibleDC(hScreenDC);
+    
+    int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+    int screenHeight = GetSystemMetrics(SM_CYSCREEN);
+    
+    int scaledWidth = GetDeviceCaps(hScreenDC, DESKTOPHORZRES);
+    int scaledHeight = GetDeviceCaps(hScreenDC, DESKTOPVERTRES);
+    
+    if (scaledWidth > 0 && scaledHeight > 0) {
+        screenWidth = scaledWidth;
+        screenHeight = scaledHeight;
+    }
+    
+    HBITMAP hBitmap = CreateCompatibleBitmap(hScreenDC, screenWidth, screenHeight);
+    HBITMAP hOldBitmap = (HBITMAP)SelectObject(hMemoryDC, hBitmap);
+    
+    SetStretchBltMode(hMemoryDC, HALFTONE);
+    StretchBlt(hMemoryDC, 0, 0, screenWidth, screenHeight, 
+               hScreenDC, 0, 0, screenWidth, screenHeight, SRCCOPY);
+    
+    SelectObject(hMemoryDC, hOldBitmap);
+    DeleteDC(hMemoryDC);
+    ReleaseDC(NULL, hScreenDC);
+    
     return hBitmap;
 }
 
