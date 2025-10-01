@@ -5,5 +5,5 @@
 
 HBITMAP CaptureScreen(void);
 void CopyToClipboard(HBITMAP hBitmap);
-
+HBITMAP CaptureScreenRegion(RECT r); 
 #endif
