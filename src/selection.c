@@ -1,8 +1,11 @@
+//selection.c
 #define _WIN32_WINNT 0x0600
 #include <windows.h>
 #include <stdint.h>
 #include "selection.h"
 #include "capture.h"
+
+extern HWND hwndMain;
 
 static HWND g_hwndOverlay = NULL;
 static POINT g_ptStart = {0,0};
@@ -141,18 +144,18 @@ LRESULT CALLBACK OverlayProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                     max(g_ptStart.y, g_ptEnd.y)
                 };
 
-                // Hide & destroy overlay first
                 ShowWindow(hwnd, SW_HIDE);
                 DestroyWindow(hwnd);
                 g_hwndOverlay = NULL;
 
-                // small pause to ensure the overlay window is fully removed
-                Sleep(30);
+                Sleep(100);
 
                 if ((selRect.right - selRect.left) > 1 && (selRect.bottom - selRect.top) > 1) {
                     HBITMAP bmp = CaptureScreenRegion(selRect);
                     CopyToClipboard(bmp);
                 }
+                
+                RegisterHotKey(hwndMain, 1, MOD_ALT, 'X');
             }
             return 0;
         }
@@ -162,6 +165,8 @@ LRESULT CALLBACK OverlayProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 ShowWindow(hwnd, SW_HIDE);
                 DestroyWindow(hwnd);
                 g_hwndOverlay = NULL;
+                
+                RegisterHotKey(hwndMain, 1, MOD_ALT, 'X');
             }
             return 0;
 

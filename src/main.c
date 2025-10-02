@@ -35,7 +35,7 @@ DWORD WINAPI HoldMonitorThread(LPVOID lpParam)
         elapsed += poll;
     }
 
-    if (g_monitorActive && !g_keyReleased) {
+    if (!g_keyReleased) {
         g_monitorActive = FALSE;
         PostMessage(hwnd, WM_START_SELECTION, 0, 0);
     }
@@ -67,7 +67,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             g_monitorActive = FALSE;
             UnregisterHotKey(hwnd, HOTKEY_ID);
             StartSelectionMode(hwnd);
-            RegisterHotKey(hwnd, HOTKEY_ID, MOD_ALT, 'X');
             break;
         }
 
@@ -131,8 +130,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     while(GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
-        
-        RenderUI(NULL);
     }
 
     UnregisterHotKey(hwndMain, HOTKEY_ID);
