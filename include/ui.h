@@ -7,7 +7,7 @@
 void InitUI(HWND hwnd_parent);
 void ShowUI();
 void RenderUI(HWND hwnd);
-int GetAutoStartToggle();     // Changed from nk_bool to int
-void SetAutoStartToggle(int value);  // Changed from nk_bool to int
+int GetAutoStartToggle();
+void SetAutoStartToggle(int value);
 
 #endif

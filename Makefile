@@ -1,4 +1,5 @@
 CC=gcc
+WINDRES=windres
 CFLAGS=-Wall -O2 -std=c99 -Iinclude
 LIBS=-lgdi32 -luser32 -lshell32 -lcomctl32 -ladvapi32 -lole32
 
@@ -6,22 +7,25 @@ SRCDIR=src
 BUILDDIR=build
 SOURCES=$(wildcard $(SRCDIR)/*.c)
 OBJECTS=$(SOURCES:$(SRCDIR)/%.c=$(BUILDDIR)/%.o)
+RESOURCE=$(BUILDDIR)/resource.o
 TARGET=$(BUILDDIR)/1shot.exe
 
 $(BUILDDIR):
 	@if not exist "$(BUILDDIR)" mkdir "$(BUILDDIR)"
 
-
 all: $(BUILDDIR) $(TARGET)
 
-$(TARGET): $(OBJECTS)
+$(TARGET): $(OBJECTS) $(RESOURCE)
 	@echo Linking $(TARGET)...
-	@$(CC) $(OBJECTS) -o $(TARGET) $(LIBS) -mwindows
-
+	@$(CC) $(OBJECTS) $(RESOURCE) -o $(TARGET) $(LIBS) -mwindows
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.c
 	@echo Compiling $<...
 	@$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILDDIR)/resource.o: $(SRCDIR)/resource.rc
+	@echo Compiling resource file...
+	@$(WINDRES) -Iinclude $(SRCDIR)/resource.rc -O coff -o $(BUILDDIR)/resource.o
 
 clean:
 	@echo Cleaning build files...

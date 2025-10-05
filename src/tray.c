@@ -13,7 +13,7 @@ void InitTrayIcon(HWND hwnd, HINSTANCE hInstance)
     HICON hIcon = (HICON)LoadImage(NULL, "assets/icon.ico", IMAGE_ICON, 16, 16, LR_LOADFROMFILE);
     if (!hIcon) hIcon = LoadIcon(NULL, IDI_APPLICATION);
     nid.hIcon = hIcon;
-    lstrcpy(nid.szTip, "1Shot Screenshot Tool");
+    lstrcpy(nid.szTip, "1Shot");
     Shell_NotifyIcon(NIM_ADD, &nid);
 }
 
@@ -34,7 +34,7 @@ void ShowTrayMenu(HWND hwnd)
 
     POINT pt;
     GetCursorPos(&pt);
-    SetForegroundWindow(hwnd); // required for menu to disappear correctly
+    SetForegroundWindow(hwnd);
     TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
     DestroyMenu(hMenu);
 }

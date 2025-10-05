@@ -1,5 +1,6 @@
 //ui.c
 #include "ui.h"
+#include "resource.h"
 #include <windows.h>
 #include <commctrl.h>
 
@@ -416,18 +417,27 @@ void InitUI(HWND hwnd_parent)
     toggle_state = GetAutoStartRegistry();
     auto_start = toggle_state;
 
+    HINSTANCE hInst = GetModuleHandle(NULL);
+
     WNDCLASS wc = {0};
     wc.lpfnWndProc = UIWndProc;
-    wc.hInstance = GetModuleHandle(NULL);
+    wc.hInstance = hInst;
     wc.lpszClassName = "ModernUIClass";
     wc.hbrBackground = CreateSolidBrush(RGB(24, 37, 37));
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hIcon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_APP_ICON));
     RegisterClass(&wc);
 
     hwnd_ui = CreateWindow("ModernUIClass", "1Shot",
                            WS_OVERLAPPEDWINDOW & ~(WS_MAXIMIZEBOX | WS_THICKFRAME),
                            CW_USEDEFAULT, CW_USEDEFAULT, ui_width, ui_height,
-                           hwnd_parent, NULL, GetModuleHandle(NULL), NULL);
+                           hwnd_parent, NULL, hInst, NULL);
+    
+    HICON hIcon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_APP_ICON));
+    if (hIcon) {
+        SendMessage(hwnd_ui, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+        SendMessage(hwnd_ui, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+    }
 }
 
 void ShowUI()
